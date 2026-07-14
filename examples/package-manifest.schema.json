@@ -1,0 +1,476 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://msys.local/schemas/manifest.v1.json",
+  "title": "MSYS package manifest v1",
+  "description": "Language-neutral package and component contract consumed by msysd.",
+  "type": "object",
+  "required": ["schema", "package", "components"],
+  "properties": {
+    "schema": {"const": "msys.manifest.v1"},
+    "package": {"$ref": "#/$defs/package"},
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/component"}
+    }
+  },
+  "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+  "additionalProperties": false,
+  "$defs": {
+    "packageId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*(?:\\.[a-z0-9][a-z0-9_-]*)+$"
+    },
+    "componentId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]*$"
+    },
+    "componentRef": {
+      "description": "A local component id or a fully-qualified package:component id.",
+      "type": "string",
+      "pattern": "^(?:[a-z0-9][a-z0-9_-]*(?:\\.[a-z0-9][a-z0-9_-]*)+:)?[a-z][a-z0-9._-]*$"
+    },
+    "package": {
+      "type": "object",
+      "required": ["id", "version", "kind"],
+      "properties": {
+        "id": {"$ref": "#/$defs/packageId"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 128},
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "kind": {"enum": ["system", "application", "driver", "tool"]},
+        "vendor": {"type": "string", "minLength": 1, "maxLength": 128},
+        "summary": {"type": "string", "minLength": 1, "maxLength": 256},
+        "x-msys-i18n": {"$ref": "#/$defs/i18nPresentation"},
+        "icons": {
+          "$ref": "#/$defs/icons",
+          "description": "Package-level presentation fallback used when a component has no non-empty icon set; it grants no activation or authority."
+        }
+      },
+      "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+      "additionalProperties": false
+    },
+    "i18nPresentation": {
+      "type": "object",
+      "required": ["catalog"],
+      "properties": {
+        "catalog": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*$"
+        },
+        "name_key": {"type": "string", "minLength": 1, "maxLength": 128},
+        "summary_key": {"type": "string", "minLength": 1, "maxLength": 128}
+      },
+      "anyOf": [
+        {"required": ["name_key"]},
+        {"required": ["summary_key"]}
+      ],
+      "additionalProperties": false
+    },
+    "runtime": {
+      "description": "Descriptive runtime/framework label. It never changes exec semantics.",
+      "anyOf": [
+        {
+          "enum": [
+            "native",
+            "c",
+            "cpp",
+            "python",
+            "qt",
+            "electron",
+            "tk",
+            "shell",
+            "custom"
+          ]
+        },
+        {"type": "string", "pattern": "^x-[a-z0-9][a-z0-9._-]*$"}
+      ]
+    },
+    "argv": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {"type": "string", "minLength": 1, "pattern": "^[^\\u0000]+$"}
+    },
+    "path": {
+      "description": "Package-root-relative or absolute path; NUL is forbidden.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\u0000]+$"
+    },
+    "icon": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "size": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "mime": {"type": "string", "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+$"}
+      },
+      "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+      "additionalProperties": false
+    },
+    "icons": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/icon"}
+    },
+    "readiness": {
+      "type": "object",
+      "required": ["mode", "timeout_ms"],
+      "properties": {
+        "mode": {"enum": ["exec", "mipc-ready", "x11-display"]},
+        "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 300000}
+      },
+      "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+      "additionalProperties": false
+    },
+    "provide": {
+      "type": "object",
+      "required": ["exclusive"],
+      "properties": {
+        "role": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$"},
+        "interface": {"type": "string", "pattern": "^[a-z][a-z0-9._-]*$"},
+        "capability": {"type": "string", "pattern": "^[a-z][a-z0-9._:-]*$"},
+        "exclusive": {"type": "boolean"},
+        "priority": {"type": "integer", "minimum": -10000, "maximum": 10000}
+      },
+      "oneOf": [
+        {
+          "required": ["role"],
+          "not": {"anyOf": [{"required": ["interface"]}, {"required": ["capability"]}]}
+        },
+        {
+          "required": ["interface"],
+          "not": {"anyOf": [{"required": ["role"]}, {"required": ["capability"]}]}
+        },
+        {
+          "required": ["capability"],
+          "not": {"anyOf": [{"required": ["role"]}, {"required": ["interface"]}]}
+        }
+      ],
+      "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+      "additionalProperties": false
+    },
+    "windowIdentity": {
+      "description": "Stable logical/window-system identity; title is never used as identity.",
+      "type": "object",
+      "required": ["app_id"],
+      "properties": {
+        "app_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+        "x11_wm_class": {"type": "string", "minLength": 1, "maxLength": 128},
+        "x11_wm_instance": {"type": "string", "minLength": 1, "maxLength": 128},
+        "wayland_app_id": {"type": "string", "minLength": 1, "maxLength": 255}
+      },
+      "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+      "additionalProperties": false
+    },
+    "windowing": {
+      "type": "object",
+      "required": ["system", "mode"],
+      "properties": {
+        "system": {"enum": ["x11", "wayland", "framebuffer", "none", "custom"]},
+        "display": {"type": "string", "minLength": 1, "maxLength": 128},
+        "mode": {"enum": ["window", "fullscreen", "background", "overlay", "display-provider"]},
+        "title": {"type": "string", "minLength": 1, "maxLength": 256},
+        "identity": {"$ref": "#/$defs/windowIdentity"},
+        "edge": {"enum": ["top", "right", "bottom", "left"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"system": {"const": "x11"}}, "required": ["system"]},
+          "then": {
+            "required": ["display"],
+            "properties": {"display": {"pattern": "^(?:inherit|:[0-9]+(?:\\.[0-9]+)?)$"}}
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "system": {"const": "x11"},
+              "mode": {"const": "display-provider"}
+            },
+            "required": ["system", "mode"]
+          },
+          "then": {
+            "properties": {"display": {"pattern": "^:[0-9]+(?:\\.[0-9]+)?$"}}
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "mode": {"const": "display-provider"},
+              "display": {"const": "inherit"}
+            },
+            "required": ["mode", "display"]
+          }
+        },
+        {
+          "if": {
+            "properties": {"mode": {"enum": ["window", "fullscreen", "overlay"]}},
+            "required": ["mode"]
+          },
+          "then": {"required": ["title", "identity"]}
+        }
+      ],
+      "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+      "additionalProperties": false
+    },
+    "intent": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": {"type": "string", "pattern": "^[a-z][a-z0-9.-]*$"},
+        "schemes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9+.-]*$"}
+        },
+        "mime": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z0-9.+*-]+/[a-z0-9.+*-]+$"}
+        },
+        "name": {"type": "string", "minLength": 1, "maxLength": 128},
+        "priority": {"type": "integer", "minimum": -10000, "maximum": 10000}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"action": {"const": "open-uri"}}, "required": ["action"]},
+          "then": {"required": ["schemes"]}
+        },
+        {
+          "if": {"properties": {"action": {"const": "open-mime"}}, "required": ["action"]},
+          "then": {"required": ["mime"]}
+        },
+        {
+          "if": {"properties": {"action": {"const": "settings-panel"}}, "required": ["action"]},
+          "then": {"required": ["name"]}
+        }
+      ],
+      "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+      "additionalProperties": false
+    },
+    "activation": {
+      "type": "object",
+      "required": ["launchable"],
+      "properties": {
+        "launchable": {"type": "boolean"},
+        "intents": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/intent"}
+        }
+      },
+      "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+      "additionalProperties": false
+    },
+    "permission": {
+      "description": "Explicit component capability. mipc.call and mipc.event grants are enforced on inherited component channels; see specs/mipc.md.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@*+-]*$",
+      "allOf": [
+        {
+          "if": {"pattern": "^mipc\\.call:"},
+          "then": {"pattern": "^mipc\\.call:(?:\\*|[A-Za-z0-9][A-Za-z0-9._:/@+\\-]*)$"}
+        },
+        {
+          "if": {"pattern": "^mipc\\.event:"},
+          "then": {"pattern": "^mipc\\.event:(?:subscribe|publish):(?:\\*|[A-Za-z0-9][A-Za-z0-9._:\\-]*\\*?)$"}
+        }
+      ]
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rlimitValue": {
+      "anyOf": [
+        {"$ref": "#/$defs/nonNegativeInteger"},
+        {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "soft": {"$ref": "#/$defs/nonNegativeInteger"},
+            "hard": {"$ref": "#/$defs/nonNegativeInteger"}
+          },
+          "additionalProperties": false
+        },
+        {"type": "null"}
+      ]
+    },
+    "seccomp": {
+      "anyOf": [
+        {"enum": ["off", "helper"]},
+        {
+          "type": "object",
+          "properties": {
+            "mode": {"enum": ["off", "helper"]},
+            "profile": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        {"type": "null"}
+      ]
+    },
+    "isolationObject": {
+      "type": "object",
+      "properties": {
+        "profile": {"enum": ["none", "baseline", "namespaced", "custom"]},
+        "failure": {"enum": ["fail-closed", "best-effort"]},
+        "namespaces": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["user", "mount", "ipc", "uts", "network"]}
+        },
+        "no_new_privs": {"type": "boolean"},
+        "dumpable": {"type": "boolean"},
+        "rlimits": {
+          "type": "object",
+          "properties": {
+            "as": {"$ref": "#/$defs/rlimitValue"},
+            "core": {"$ref": "#/$defs/rlimitValue"},
+            "cpu": {"$ref": "#/$defs/rlimitValue"},
+            "data": {"$ref": "#/$defs/rlimitValue"},
+            "fsize": {"$ref": "#/$defs/rlimitValue"},
+            "memlock": {"$ref": "#/$defs/rlimitValue"},
+            "nofile": {"$ref": "#/$defs/rlimitValue"},
+            "nproc": {"$ref": "#/$defs/rlimitValue"},
+            "stack": {"$ref": "#/$defs/rlimitValue"}
+          },
+          "additionalProperties": false
+        },
+        "seccomp": {"$ref": "#/$defs/seccomp"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "anyOf": [
+              {
+                "required": ["seccomp"],
+                "properties": {"seccomp": {"const": "helper"}}
+              },
+              {
+                "required": ["seccomp"],
+                "properties": {
+                  "seccomp": {
+                    "type": "object",
+                    "required": ["mode"],
+                    "properties": {"mode": {"const": "helper"}}
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "required": ["no_new_privs"],
+                "properties": {"no_new_privs": {"const": true}}
+              },
+              {
+                "required": ["profile"],
+                "properties": {"profile": {"enum": ["baseline", "namespaced"]}},
+                "not": {"required": ["no_new_privs"]}
+              }
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "isolation": {
+      "anyOf": [
+        {"enum": ["none", "baseline", "namespaced", "custom"]},
+        {"$ref": "#/$defs/isolationObject"}
+      ]
+    },
+    "component": {
+      "type": "object",
+      "required": ["id", "runtime", "exec", "lifecycle", "restart"],
+      "properties": {
+        "id": {"$ref": "#/$defs/componentId"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 128},
+        "runtime": {"$ref": "#/$defs/runtime"},
+        "exec": {"$ref": "#/$defs/argv"},
+        "cwd": {"$ref": "#/$defs/path"},
+        "env": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"type": "string"}
+        },
+        "lifecycle": {"enum": ["session", "background", "on-demand", "manual"]},
+        "restart": {"enum": ["never", "on-failure", "always"]},
+        "idle_timeout_ms": {
+          "description": "Optional on-demand idle reclamation timeout; omission keeps the provider resident.",
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 86400000
+        },
+        "readiness": {"$ref": "#/$defs/readiness"},
+        "provides": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/provide"}
+        },
+        "requires": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/componentRef"}
+        },
+        "wants": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/componentRef"}
+        },
+        "after": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/componentRef"}
+        },
+        "windowing": {"$ref": "#/$defs/windowing"},
+        "x-msys-role-windows": {
+          "description": "Closed per-role surface map for one component that owns multiple windows; semantic role/identity conflicts are checked by contract_tool.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z][a-z0-9.-]*$"},
+          "additionalProperties": {"$ref": "#/$defs/windowing"}
+        },
+        "activation": {"$ref": "#/$defs/activation"},
+        "icons": {
+          "$ref": "#/$defs/icons",
+          "description": "Component presentation icons. A non-empty set takes priority over package.icons but never implies launchability, an intent, a role, or a permission."
+        },
+        "x-msys-i18n": {"$ref": "#/$defs/i18nPresentation"},
+        "permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/permission"}
+        },
+        "isolation": {"$ref": "#/$defs/isolation"},
+        "x-msys-isolation": {"$ref": "#/$defs/isolation"}
+      },
+      "allOf": [
+        {
+          "not": {"required": ["isolation", "x-msys-isolation"]}
+        },
+        {
+          "if": {"required": ["idle_timeout_ms"]},
+          "then": {
+            "required": ["lifecycle"],
+            "properties": {"lifecycle": {"const": "on-demand"}}
+          }
+        }
+      ],
+      "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+      "additionalProperties": false
+    }
+  }
+}

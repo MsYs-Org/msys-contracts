@@ -1,0 +1,37 @@
+{
+  "schema": "msys.manifest.v1",
+  "package": {
+    "id": "org.example.python",
+    "name": "Python Example",
+    "version": "1.0.0",
+    "kind": "application",
+    "summary": "Python app using the MSYS SDK optionally",
+    "x-msys-i18n": {
+      "catalog": "files/share/i18n/catalog.json",
+      "name_key": "app.name",
+      "summary_key": "app.summary"
+    }
+  },
+  "components": [
+    {
+      "id": "main",
+      "runtime": "python",
+      "exec": ["files/runtime/python/bin/python3", "files/app/main.py"],
+      "lifecycle": "manual",
+      "restart": "never",
+      "readiness": {"mode": "exec", "timeout_ms": 3000},
+      "windowing": {
+        "system": "x11",
+        "display": "inherit",
+        "mode": "window",
+        "title": "Python Example",
+        "identity": {
+          "app_id": "org.example.python",
+          "x11_wm_class": "ExamplePython"
+        }
+      },
+      "activation": {"launchable": true, "intents": []},
+      "permissions": ["display:x11"]
+    }
+  ]
+}

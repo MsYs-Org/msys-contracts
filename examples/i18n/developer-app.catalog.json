@@ -1,0 +1,22 @@
+{
+  "$schema": "https://msys.local/schemas/i18n-catalog.v1.json",
+  "schema": "msys.i18n.catalog.v1",
+  "id": "org.example.developer-app",
+  "description": "Minimal application catalog with an intentionally partial translation",
+  "default_locale": "en-US",
+  "messages": {
+    "en-US": {
+      "app.name": "Developer app",
+      "app.summary": "A small MSYS example",
+      "app.title": "Developer app",
+      "greeting": "Hello, {name}",
+      "tasks.count": "Tasks: {count}"
+    },
+    "zh-CN": {
+      "app.name": "开发者应用",
+      "app.summary": "一个小型 MSYS 示例",
+      "app.title": "开发者应用",
+      "greeting": "你好，{name}"
+    }
+  }
+}

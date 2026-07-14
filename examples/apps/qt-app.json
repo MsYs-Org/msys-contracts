@@ -1,0 +1,51 @@
+{
+  "schema": "msys.manifest.v1",
+  "package": {
+    "id": "org.example.qt",
+    "name": "Qt Example",
+    "version": "1.0.0",
+    "kind": "application",
+    "summary": "Qt Widgets or QML application",
+    "icons": [
+      {
+        "path": "files/share/icons/qt-package.png",
+        "size": 64,
+        "mime": "image/png"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "main",
+      "runtime": "qt",
+      "exec": ["files/bin/qt-example"],
+      "lifecycle": "manual",
+      "restart": "never",
+      "readiness": {"mode": "exec", "timeout_ms": 5000},
+      "icons": [
+        {
+          "path": "files/share/icons/qt-app.png",
+          "size": 64,
+          "mime": "image/png"
+        }
+      ],
+      "windowing": {
+        "system": "x11",
+        "display": "inherit",
+        "mode": "fullscreen",
+        "title": "Qt Example",
+        "identity": {
+          "app_id": "org.example.qt",
+          "x11_wm_class": "ExampleQt"
+        }
+      },
+      "env": {
+        "QT_QPA_PLATFORM": "xcb",
+        "QT_PLUGIN_PATH": "files/runtime/qt/plugins",
+        "LD_LIBRARY_PATH": "files/runtime/qt/lib"
+      },
+      "activation": {"launchable": true, "intents": []},
+      "permissions": ["display:x11"]
+    }
+  ]
+}

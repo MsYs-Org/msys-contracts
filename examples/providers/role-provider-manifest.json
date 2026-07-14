@@ -1,0 +1,126 @@
+{
+  "schema": "msys.manifest.v1",
+  "package": {
+    "id": "org.example.role.providers",
+    "name": "Cross-language Role Provider Examples",
+    "version": "1.0.0",
+    "kind": "system",
+    "summary": "Declaration-only examples for every baseline versioned role contract"
+  },
+  "components": [
+    {
+      "id": "launcher",
+      "runtime": "custom",
+      "exec": ["files/bin/example-launcher"],
+      "lifecycle": "background",
+      "restart": "on-failure",
+      "readiness": {"mode": "mipc-ready", "timeout_ms": 5000},
+      "windowing": {
+        "system": "x11",
+        "display": "inherit",
+        "mode": "window",
+        "title": "Example Launcher",
+        "identity": {"app_id": "org.example.launcher", "x11_wm_class": "org.example.launcher"}
+      },
+      "provides": [
+        {
+          "role": "launcher",
+          "exclusive": true,
+          "priority": 10,
+          "x-msys-contract": {"id": "org.msys.role.launcher.v1", "version": "1.0.0"}
+        }
+      ],
+      "permissions": [
+        "display:x11",
+        "mipc.call:msys.core",
+        "mipc.event:publish:msys.shell.preferences.changed"
+      ]
+    },
+    {
+      "id": "window-manager",
+      "runtime": "cpp",
+      "exec": ["files/bin/example-window-manager"],
+      "lifecycle": "background",
+      "restart": "on-failure",
+      "readiness": {"mode": "mipc-ready", "timeout_ms": 5000},
+      "windowing": {"system": "x11", "display": "inherit", "mode": "background"},
+      "provides": [
+        {
+          "role": "window-manager",
+          "exclusive": true,
+          "priority": 10,
+          "x-msys-contract": {"id": "org.msys.role.window-manager.v1", "version": "1.0.0"}
+        },
+        {"interface": "org.msys.window-manager.v1", "exclusive": false, "priority": 10}
+      ],
+      "permissions": ["display:x11", "mipc.call:msys.core"]
+    },
+    {
+      "id": "navigation",
+      "runtime": "electron",
+      "exec": ["files/bin/msys-mipc-stdio", "files/runtime/node/bin/node", "files/app/navigation.js"],
+      "lifecycle": "background",
+      "restart": "on-failure",
+      "readiness": {"mode": "mipc-ready", "timeout_ms": 5000},
+      "windowing": {
+        "system": "x11",
+        "display": "inherit",
+        "mode": "overlay",
+        "title": "Example Navigation",
+        "identity": {"app_id": "org.example.navigation", "x11_wm_class": "org.example.navigation"},
+        "edge": "bottom"
+      },
+      "provides": [
+        {
+          "role": "navigation-bar",
+          "exclusive": true,
+          "priority": 10,
+          "x-msys-contract": {"id": "org.msys.role.navigation-bar.v1", "version": "1.0.0"}
+        }
+      ],
+      "permissions": ["display:x11", "mipc.call:role:window-manager"]
+    },
+    {
+      "id": "display",
+      "runtime": "shell",
+      "exec": ["files/runtime/busybox", "sh", "files/app/start-display.sh"],
+      "lifecycle": "background",
+      "restart": "on-failure",
+      "readiness": {"mode": "x11-display", "timeout_ms": 15000},
+      "windowing": {"system": "x11", "display": ":90", "mode": "display-provider"},
+      "provides": [
+        {
+          "role": "display-output",
+          "exclusive": true,
+          "priority": 10,
+          "x-msys-contract": {"id": "org.msys.role.display-output.v1", "version": "1.0.0"}
+        },
+        {"capability": "display.session.v1", "exclusive": false},
+        {"capability": "x11.display.:90", "exclusive": false}
+      ],
+      "permissions": ["display:x11-server"]
+    },
+    {
+      "id": "hal-manager",
+      "runtime": "native",
+      "exec": ["files/bin/example-hal-manager"],
+      "lifecycle": "background",
+      "restart": "on-failure",
+      "readiness": {"mode": "mipc-ready", "timeout_ms": 5000},
+      "provides": [
+        {
+          "role": "hal-manager",
+          "exclusive": true,
+          "priority": 10,
+          "x-msys-contract": {"id": "org.msys.role.hal-manager.v1", "version": "1.0.0"}
+        },
+        {"interface": "org.msys.hal.manager.v1", "exclusive": false, "priority": 10}
+      ],
+      "permissions": [
+        "mipc.call:msys.core.discover",
+        "mipc.call:interface:org.msys.hal.provider.v1",
+        "mipc.event:publish:msys.hal.changed"
+      ]
+    }
+  ]
+}

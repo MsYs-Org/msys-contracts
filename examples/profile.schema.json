@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://msys.local/schemas/profile.v1.json",
+  "title": "MSYS system profile v1",
+  "description": "Host-independent role, startup, environment, and policy selection consumed by msysd.",
+  "$comment": "roles keys and disabled_roles values MUST be disjoint; the zero-dependency runtime validator enforces this cross-field invariant.",
+  "type": "object",
+  "required": ["schema", "id", "roles", "startup"],
+  "properties": {
+    "schema": {"const": "msys.profile.v1"},
+    "id": {"$ref": "#/$defs/profileId"},
+    "roles": {
+      "type": "object",
+      "maxProperties": 256,
+      "propertyNames": {"$ref": "#/$defs/role"},
+      "additionalProperties": {"$ref": "#/$defs/candidateList"}
+    },
+    "disabled_roles": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/role"}
+    },
+    "startup": {
+      "type": "array",
+      "maxItems": 1024,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/componentRef"}
+    },
+    "env": {
+      "type": "object",
+      "maxProperties": 1024,
+      "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,254}$"},
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 32768,
+        "pattern": "^[^\\u0000]*$"
+      }
+    },
+    "state_dir": {
+      "description": "Absolute Linux state root; it is not interpreted relative to the launch cwd.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^/[^\\u0000]*$"
+    },
+    "isolation": {
+      "type": "object",
+      "properties": {
+        "seccomp_helper": {
+          "description": "Trusted absolute path or executable name used by the optional seccomp launcher protocol.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000]+$"
+        }
+      },
+      "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+      "additionalProperties": false
+    },
+    "settings": {
+      "description": "Opaque JSON settings for profile-aware providers. Core preserves but does not interpret these keys.",
+      "type": "object"
+    }
+  },
+  "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+  "additionalProperties": false,
+  "$defs": {
+    "profileId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9.-]*$"
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9.-]*$"
+    },
+    "componentRef": {
+      "description": "A local component id or fully-qualified package:component id. Presence in the current catalog is not required.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^(?:[a-z0-9][a-z0-9_-]*(?:\\.[a-z0-9][a-z0-9_-]*)+:)?[a-z][a-z0-9._-]*$"
+    },
+    "candidateList": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/componentRef"}
+    }
+  }
+}
+

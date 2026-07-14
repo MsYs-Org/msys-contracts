@@ -1,0 +1,36 @@
+{
+  "schema": "msys.manifest.v1",
+  "package": {
+    "id": "org.example.tk",
+    "name": "Tk Example",
+    "version": "1.0.0",
+    "kind": "application",
+    "summary": "Tk application"
+  },
+  "components": [
+    {
+      "id": "main",
+      "runtime": "tk",
+      "exec": ["files/runtime/python-tk/bin/python3", "files/app/main.py"],
+      "lifecycle": "manual",
+      "restart": "never",
+      "readiness": {"mode": "exec", "timeout_ms": 3000},
+      "windowing": {
+        "system": "x11",
+        "display": "inherit",
+        "mode": "window",
+        "title": "Tk Example",
+        "identity": {
+          "app_id": "org.example.tk",
+          "x11_wm_class": "ExampleTk"
+        }
+      },
+      "env": {
+        "TCL_LIBRARY": "files/runtime/python-tk/lib/tcl8.6",
+        "TK_LIBRARY": "files/runtime/python-tk/lib/tk8.6"
+      },
+      "activation": {"launchable": true, "intents": []},
+      "permissions": ["display:x11"]
+    }
+  ]
+}

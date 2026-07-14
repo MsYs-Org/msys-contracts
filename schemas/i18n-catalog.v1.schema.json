@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://msys.local/schemas/i18n-catalog.v1.json",
+  "title": "MSYS i18n catalog v1",
+  "description": "A dependency-free, language-neutral catalog containing one complete default locale and optional locale overlays.",
+  "type": "object",
+  "required": ["schema", "id", "default_locale", "messages"],
+  "properties": {
+    "$schema": {"const": "https://msys.local/schemas/i18n-catalog.v1.json"},
+    "schema": {"const": "msys.i18n.catalog.v1"},
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9][a-z0-9_-]*(?:\\.[a-z0-9][a-z0-9_-]*)+$"
+    },
+    "description": {"type": "string", "minLength": 1, "maxLength": 256},
+    "default_locale": {"$ref": "#/$defs/locale"},
+    "messages": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 128,
+      "propertyNames": {"$ref": "#/$defs/locale"},
+      "additionalProperties": {"$ref": "#/$defs/messageMap"}
+    }
+  },
+  "patternProperties": {"^x-[a-z0-9][a-z0-9._-]*$": true},
+  "additionalProperties": false,
+  "$defs": {
+    "locale": {
+      "description": "Canonical portable locale: lower-case language, optional Title-Case script, optional upper-case region, and optional lower-case variants.",
+      "type": "string",
+      "maxLength": 63,
+      "pattern": "^[a-z]{2,8}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?(?:-(?:[a-z0-9]{5,8}|[0-9][a-z0-9]{3}))*$"
+    },
+    "messageKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z][a-z0-9_-]*(?:\\.[a-z0-9][a-z0-9_-]*)*$"
+    },
+    "message": {
+      "type": "string",
+      "maxLength": 16384,
+      "pattern": "^[^\\u0000]*$"
+    },
+    "messageMap": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 20000,
+      "propertyNames": {"$ref": "#/$defs/messageKey"},
+      "additionalProperties": {"$ref": "#/$defs/message"}
+    }
+  }
+}

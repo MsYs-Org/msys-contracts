@@ -1,0 +1,32 @@
+{
+  "schema": "msys.manifest.v1",
+  "package": {
+    "id": "org.example.shell",
+    "name": "Shell Example",
+    "version": "1.0.0",
+    "kind": "application",
+    "summary": "Shell application with a package-bundled BusyBox runtime"
+  },
+  "components": [
+    {
+      "id": "main",
+      "runtime": "shell",
+      "exec": ["files/runtime/busybox", "sh", "files/app/start.sh"],
+      "lifecycle": "manual",
+      "restart": "never",
+      "readiness": {"mode": "exec", "timeout_ms": 3000},
+      "windowing": {
+        "system": "x11",
+        "display": "inherit",
+        "mode": "window",
+        "title": "Shell Example",
+        "identity": {
+          "app_id": "org.example.shell",
+          "x11_wm_class": "ExampleShell"
+        }
+      },
+      "activation": {"launchable": true, "intents": []},
+      "permissions": ["display:x11"]
+    }
+  ]
+}

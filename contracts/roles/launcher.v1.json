@@ -1,0 +1,184 @@
+{
+  "$schema": "https://msys.local/schemas/role-contract.v1.json",
+  "schema": "msys.role-contract.v1",
+  "id": "org.msys.role.launcher.v1",
+  "role": "launcher",
+  "version": "1.0.0",
+  "status": "stable",
+  "summary": "Discovers launchable components, starts an exact component through Core, and owns launcher appearance preferences.",
+  "channel": "mipc",
+  "target": "role:launcher",
+  "provider": {
+    "exclusive": true,
+    "readiness_modes": ["mipc-ready"],
+    "lifecycle_modes": ["background", "on-demand", "manual", "session"],
+    "windowing_required": true,
+    "windowing_modes": ["window", "fullscreen"],
+    "required_interfaces": [],
+    "required_capabilities": [],
+    "requires_control_channel": true
+  },
+  "types": {
+    "empty-request": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "preferences": {
+      "type": "object",
+      "required": ["layout", "wallpaper_color", "accent_color", "icon_size", "show_labels", "sort"],
+      "properties": {
+        "layout": {"enum": ["profile", "auto", "mobile", "desktop", "kiosk"]},
+        "wallpaper_color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+        "accent_color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+        "icon_size": {"type": "integer", "minimum": 40, "maximum": 96},
+        "show_labels": {"type": "boolean"},
+        "sort": {"enum": ["name", "component"]}
+      },
+      "additionalProperties": false
+    },
+    "preference-change": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "layout": {"enum": ["profile", "auto", "mobile", "desktop", "kiosk"]},
+        "wallpaper_color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+        "accent_color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+        "icon_size": {"type": "integer", "minimum": 40, "maximum": 96},
+        "show_labels": {"type": "boolean"},
+        "sort": {"enum": ["name", "component"]}
+      },
+      "additionalProperties": false
+    },
+    "preference-state": {
+      "type": "object",
+      "required": ["schema", "revision", "preferences"],
+      "properties": {
+        "schema": {"const": "msys.shell-preferences.v1"},
+        "revision": {"type": "integer", "minimum": 0},
+        "preferences": {"$ref": "#/types/preferences"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "methods": [
+    {
+      "name": "get_preferences",
+      "summary": "Return the provider-owned appearance state without activating an application.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": false,
+      "request": {"$ref": "#/types/empty-request"},
+      "response": {"$ref": "#/types/preference-state"},
+      "errors": ["BAD_REQUEST"],
+      "conformance": [
+        {
+          "id": "read-preferences",
+          "mode": "safe",
+          "request": {},
+          "expect": {"type": "return"}
+        }
+      ]
+    },
+    {
+      "name": "status",
+      "summary": "Compatibility alias for get_preferences.",
+      "since": "1.0.0",
+      "required": false,
+      "idempotent": true,
+      "mutates": false,
+      "request": {"$ref": "#/types/empty-request"},
+      "response": {"$ref": "#/types/preference-state"},
+      "errors": ["BAD_REQUEST"],
+      "conformance": []
+    },
+    {
+      "name": "set_preferences",
+      "summary": "Atomically merge one or more appearance fields into provider-owned state.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": false,
+      "mutates": true,
+      "request": {
+        "oneOf": [
+          {"$ref": "#/types/preference-change"},
+          {
+            "type": "object",
+            "required": ["preferences"],
+            "properties": {"preferences": {"$ref": "#/types/preference-change"}},
+            "additionalProperties": false
+          }
+        ]
+      },
+      "response": {"$ref": "#/types/preference-state"},
+      "errors": ["BAD_REQUEST", "BAD_PREFERENCES"],
+      "conformance": [
+        {
+          "id": "set-profile-layout",
+          "mode": "mutating",
+          "request": {"preferences": {"layout": "profile"}},
+          "expect": {"type": "return"}
+        }
+      ]
+    },
+    {
+      "name": "reset_preferences",
+      "summary": "Atomically restore provider defaults and advance the revision.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": false,
+      "mutates": true,
+      "request": {"$ref": "#/types/empty-request"},
+      "response": {"$ref": "#/types/preference-state"},
+      "errors": ["BAD_REQUEST", "BAD_PREFERENCES"],
+      "conformance": [
+        {
+          "id": "reset-defaults",
+          "mode": "mutating",
+          "request": {},
+          "expect": {"type": "return"}
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "topic": "msys.shell.preferences.changed",
+      "direction": "publish",
+      "required": true,
+      "payload": {
+        "type": "object",
+        "required": ["revision", "preferences"],
+        "properties": {
+          "revision": {"type": "integer", "minimum": 0},
+          "preferences": {"$ref": "#/types/preferences"},
+          "reset": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      },
+      "summary": "Broadcast after a committed preference mutation; consumers treat revision as monotonic provider-local state."
+    },
+    {
+      "topic": "msys.install.package_changed",
+      "direction": "subscribe",
+      "required": false,
+      "payload": {"type": "object", "additionalProperties": true},
+      "summary": "Refreshes the visible app catalog after an installation transaction."
+    }
+  ],
+  "artifacts": [],
+  "dependencies": [
+    {
+      "target": "msys.core",
+      "methods": ["list_apps", "start"],
+      "required": true,
+      "summary": "Core is authoritative for launch targets and component lifecycle; presentation metadata never creates a target."
+    }
+  ],
+  "errors": {
+    "BAD_REQUEST": {"summary": "The request payload is not a JSON object of the required shape.", "retryable": false},
+    "BAD_PREFERENCES": {"summary": "A preference value is invalid or the atomic state commit failed.", "retryable": false},
+    "NO_METHOD": {"summary": "The requested method is not part of the provider surface.", "retryable": false}
+  }
+}

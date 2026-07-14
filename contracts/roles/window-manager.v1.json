@@ -1,0 +1,455 @@
+{
+  "$schema": "https://msys.local/schemas/role-contract.v1.json",
+  "schema": "msys.role-contract.v1",
+  "id": "org.msys.role.window-manager.v1",
+  "role": "window-manager",
+  "version": "1.0.0",
+  "status": "stable",
+  "summary": "Owns toolkit-neutral foreground navigation, stable window handles, geometry operations, layout, and launcher activation.",
+  "channel": "mipc",
+  "target": "role:window-manager",
+  "provider": {
+    "exclusive": true,
+    "readiness_modes": ["mipc-ready"],
+    "lifecycle_modes": ["background", "session"],
+    "windowing_required": false,
+    "windowing_modes": ["background"],
+    "required_interfaces": ["org.msys.window-manager.v1"],
+    "required_capabilities": [],
+    "requires_control_channel": true
+  },
+  "types": {
+    "empty-request": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "window-id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 191
+    },
+    "geometry": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": {"type": "integer", "minimum": -32768, "maximum": 32767},
+        "y": {"type": "integer", "minimum": -32768, "maximum": 32767},
+        "width": {"type": "integer", "minimum": 1, "maximum": 32767},
+        "height": {"type": "integer", "minimum": 1, "maximum": 32767}
+      },
+      "additionalProperties": false
+    },
+    "window": {
+      "type": "object",
+      "required": ["schema", "id", "window_id", "title", "kind", "state", "source"],
+      "properties": {
+        "schema": {"const": "msys.window.v1"},
+        "id": {"type": "string", "maxLength": 191},
+        "window_id": {"type": ["string", "null"], "maxLength": 191},
+        "native_id": {"type": ["string", "null"], "maxLength": 64},
+        "title": {"type": "string", "maxLength": 512},
+        "identity": {"type": ["string", "null"], "maxLength": 255},
+        "component": {"type": ["string", "null"], "maxLength": 255},
+        "role": {"type": ["string", "null"], "maxLength": 128},
+        "kind": {"enum": ["application", "system", "overlay", "unknown"]},
+        "state": {"enum": ["visible", "minimized", "pending-surface", "hidden"]},
+        "source": {"type": "string", "maxLength": 64},
+        "geometry": {"$ref": "#/types/geometry"},
+        "thumbnail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^/"
+        },
+        "managed": {"type": "boolean"},
+        "component_state": {"type": ["string", "null"], "maxLength": 64},
+        "compatibility": {"const": "legacy-title"}
+      },
+      "additionalProperties": false
+    },
+    "window-list": {
+      "type": "object",
+      "required": ["schema", "windows"],
+      "properties": {
+        "schema": {"const": "msys.window-list.v1"},
+        "windows": {
+          "type": "array",
+          "maxItems": 512,
+          "items": {"$ref": "#/types/window"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "operation-result": {
+      "type": "object",
+      "required": ["ok"],
+      "properties": {
+        "ok": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "window-action-result": {
+      "type": "object",
+      "required": ["ok", "schema", "action"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "schema": {"const": "msys.window-action.v1"},
+        "action": {"enum": ["focus", "minimize", "move", "resize", "move_resize", "close"]},
+        "window_id": {"type": "string", "maxLength": 191},
+        "reason": {"type": "string", "maxLength": 128},
+        "error": {"type": "string", "maxLength": 1024},
+        "returncode": {"type": "integer"},
+        "closed_component": {"type": "string", "maxLength": 255},
+        "component": {"type": "string", "maxLength": 255},
+        "requested": {"type": "object", "additionalProperties": {"type": "integer"}}
+      },
+      "additionalProperties": false
+    },
+    "window-id-request": {
+      "type": "object",
+      "required": ["window_id"],
+      "properties": {"window_id": {"$ref": "#/types/window-id"}},
+      "additionalProperties": false
+    },
+    "move-request": {
+      "type": "object",
+      "required": ["window_id", "x", "y"],
+      "properties": {
+        "window_id": {"$ref": "#/types/window-id"},
+        "x": {"type": "integer", "minimum": -32768, "maximum": 32767},
+        "y": {"type": "integer", "minimum": -32768, "maximum": 32767}
+      },
+      "additionalProperties": false
+    },
+    "resize-request": {
+      "type": "object",
+      "required": ["window_id", "width", "height"],
+      "properties": {
+        "window_id": {"$ref": "#/types/window-id"},
+        "width": {"type": "integer", "minimum": 1, "maximum": 32767},
+        "height": {"type": "integer", "minimum": 1, "maximum": 32767}
+      },
+      "additionalProperties": false
+    },
+    "move-resize-request": {
+      "type": "object",
+      "required": ["window_id", "x", "y", "width", "height"],
+      "properties": {
+        "window_id": {"$ref": "#/types/window-id"},
+        "x": {"type": "integer", "minimum": -32768, "maximum": 32767},
+        "y": {"type": "integer", "minimum": -32768, "maximum": 32767},
+        "width": {"type": "integer", "minimum": 1, "maximum": 32767},
+        "height": {"type": "integer", "minimum": 1, "maximum": 32767}
+      },
+      "additionalProperties": false
+    }
+  },
+  "methods": [
+    {
+      "name": "list_windows",
+      "summary": "List managed applications and unmanaged native surfaces from top to bottom using stable handles.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": false,
+      "request": {"$ref": "#/types/empty-request"},
+      "response": {"$ref": "#/types/window-list"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": [{"id": "list", "mode": "safe", "request": {}, "expect": {"type": "return"}}]
+    },
+    {
+      "name": "recents",
+      "summary": "Compatibility/read-only alias for list_windows used by task switchers.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": false,
+      "request": {"$ref": "#/types/empty-request"},
+      "response": {"$ref": "#/types/window-list"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": [{"id": "recents", "mode": "safe", "request": {}, "expect": {"type": "return"}}]
+    },
+    {
+      "name": "navigation_action",
+      "summary": "Execute one typed Back, Home, or Recents navigation transaction.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": false,
+      "mutates": true,
+      "request": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {"enum": ["back", "home", "recents", "apps"]},
+          "input": {"enum": ["button", "swipe"]}
+        },
+        "additionalProperties": false
+      },
+      "response": {
+        "type": "object",
+        "required": ["ok", "schema", "action", "input"],
+        "properties": {
+          "ok": {"type": "boolean"},
+          "schema": {"const": "msys.navigation-action.v1"},
+          "action": {"enum": ["back", "home", "recents"]},
+          "input": {"enum": ["button", "swipe"]}
+        },
+        "additionalProperties": true
+      },
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "navigate",
+      "summary": "Compatibility alias for navigation_action with identical typed payload semantics.",
+      "since": "1.0.0",
+      "required": false,
+      "idempotent": false,
+      "mutates": true,
+      "request": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {"enum": ["back", "home", "recents", "apps"]},
+          "input": {"enum": ["button", "swipe"]}
+        },
+        "additionalProperties": false
+      },
+      "response": {"$ref": "#/types/operation-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "back",
+      "summary": "Dismiss the top system overlay or close the active foreground application.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": false,
+      "mutates": true,
+      "request": {"$ref": "#/types/empty-request"},
+      "response": {"$ref": "#/types/operation-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "close_active",
+      "summary": "Alias of Back for mobile clients; supervised lifecycle remains authoritative for managed applications.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": false,
+      "mutates": true,
+      "request": {"$ref": "#/types/empty-request"},
+      "response": {"$ref": "#/types/operation-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "home",
+      "summary": "Ask Core to activate the dynamically selected launcher provider and raise its current generation.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": false,
+      "mutates": true,
+      "request": {"$ref": "#/types/empty-request"},
+      "response": {"$ref": "#/types/operation-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "activate_component",
+      "summary": "Raise or map an existing surface by exact component or stable identity; title is presentation fallback only.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": true,
+      "request": {
+        "type": "object",
+        "required": ["component", "identity", "title"],
+        "properties": {
+          "component": {"type": "string", "maxLength": 255},
+          "identity": {"type": "string", "maxLength": 255},
+          "title": {"type": "string", "maxLength": 512}
+        },
+        "additionalProperties": false
+      },
+      "response": {"$ref": "#/types/operation-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "get_layout",
+      "summary": "Return effective profile, orientation, insets, work area, navigation edge, and display consistency.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": false,
+      "request": {"$ref": "#/types/empty-request"},
+      "response": {"$ref": "#/types/operation-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": [{"id": "read-layout", "mode": "safe", "request": {}, "expect": {"type": "return"}}]
+    },
+    {
+      "name": "get_display_session",
+      "summary": "Return the exact selected display provider generation and endpoint observed by this policy provider.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": false,
+      "request": {"$ref": "#/types/empty-request"},
+      "response": {"$ref": "#/types/operation-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": [{"id": "read-display-session", "mode": "safe", "request": {}, "expect": {"type": "return"}}]
+    },
+    {
+      "name": "set_layout",
+      "summary": "Apply a typed layout profile and publish the effective layout after it is observed.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": true,
+      "request": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "profile": {"enum": ["mobile", "desktop", "kiosk"]},
+          "mode": {"enum": ["mobile", "desktop", "kiosk"]},
+          "orientation": {"enum": ["auto", "landscape", "portrait"]},
+          "insets": {
+            "oneOf": [
+              {"const": "auto"},
+              {"type": "string", "pattern": "^[0-9]+,[0-9]+,[0-9]+,[0-9]+$"},
+              {
+                "type": "object",
+                "required": ["top", "right", "bottom", "left"],
+                "properties": {
+                  "top": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+                  "right": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+                  "bottom": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+                  "left": {"type": "integer", "minimum": 0, "maximum": 2147483647}
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "response": {"$ref": "#/types/operation-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "window_action",
+      "summary": "Perform a stable-handle action; stale generations must not target a reused native window id.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": false,
+      "mutates": true,
+      "request": {
+        "type": "object",
+        "required": ["action", "window_id"],
+        "properties": {
+          "action": {"enum": ["focus", "minimize", "move", "resize", "move_resize", "close"]},
+          "window_id": {"$ref": "#/types/window-id"},
+          "x": {"type": "integer", "minimum": -32768, "maximum": 32767},
+          "y": {"type": "integer", "minimum": -32768, "maximum": 32767},
+          "width": {"type": "integer", "minimum": 1, "maximum": 32767},
+          "height": {"type": "integer", "minimum": 1, "maximum": 32767}
+        },
+        "additionalProperties": false
+      },
+      "response": {"$ref": "#/types/window-action-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "focus_window",
+      "summary": "Focus and raise one stable window handle.",
+      "since": "1.0.0", "required": true, "idempotent": true, "mutates": true,
+      "request": {"$ref": "#/types/window-id-request"}, "response": {"$ref": "#/types/window-action-result"},
+      "errors": ["WINDOW_POLICY_ERROR"], "conformance": []
+    },
+    {
+      "name": "minimize_window",
+      "summary": "Minimize one stable window handle.",
+      "since": "1.0.0", "required": true, "idempotent": true, "mutates": true,
+      "request": {"$ref": "#/types/window-id-request"}, "response": {"$ref": "#/types/window-action-result"},
+      "errors": ["WINDOW_POLICY_ERROR"], "conformance": []
+    },
+    {
+      "name": "move_window",
+      "summary": "Move one stable window handle.",
+      "since": "1.0.0", "required": true, "idempotent": true, "mutates": true,
+      "request": {"$ref": "#/types/move-request"}, "response": {"$ref": "#/types/window-action-result"},
+      "errors": ["WINDOW_POLICY_ERROR"], "conformance": []
+    },
+    {
+      "name": "resize_window",
+      "summary": "Resize one stable window handle.",
+      "since": "1.0.0", "required": true, "idempotent": true, "mutates": true,
+      "request": {"$ref": "#/types/resize-request"}, "response": {"$ref": "#/types/window-action-result"},
+      "errors": ["WINDOW_POLICY_ERROR"], "conformance": []
+    },
+    {
+      "name": "move_resize_window",
+      "summary": "Atomically move and resize one stable window handle.",
+      "since": "1.0.0", "required": true, "idempotent": true, "mutates": true,
+      "request": {"$ref": "#/types/move-resize-request"}, "response": {"$ref": "#/types/window-action-result"},
+      "errors": ["WINDOW_POLICY_ERROR"], "conformance": []
+    },
+    {
+      "name": "close_window",
+      "summary": "Close one handle, routing managed applications through Core stop and native external clients through window protocol.",
+      "since": "1.0.0", "required": true, "idempotent": true, "mutates": true,
+      "request": {"$ref": "#/types/window-id-request"}, "response": {"$ref": "#/types/window-action-result"},
+      "errors": ["WINDOW_POLICY_ERROR"], "conformance": []
+    }
+  ],
+  "events": [
+    {
+      "topic": "msys.layout.changed",
+      "direction": "publish",
+      "required": true,
+      "payload": {
+        "type": "object",
+        "required": ["schema", "profile", "orientation", "geometry", "insets", "workarea", "navigation_edge", "display_consistent"],
+        "properties": {
+          "schema": {"const": "msys.layout.changed.v1"},
+          "profile": {"type": "string"},
+          "orientation_policy": {"type": "string"},
+          "orientation": {"type": "string"},
+          "geometry": {"type": "object", "additionalProperties": {"type": "integer"}},
+          "insets": {"type": "object", "additionalProperties": {"type": "integer"}},
+          "workarea": {"type": "object", "additionalProperties": {"type": "integer"}},
+          "navigation_edge": {"type": "string"},
+          "navigation_region": {"type": ["object", "null"], "additionalProperties": {"type": "integer"}},
+          "display": {"type": ["string", "null"]},
+          "display_provider": {"type": ["string", "null"]},
+          "display_generation": {"type": "integer", "minimum": 0},
+          "display_consistent": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      },
+      "summary": "Publishes effective layout only after the native policy observes it."
+    }
+  ],
+  "artifacts": [],
+  "dependencies": [
+    {
+      "target": "msys.core",
+      "methods": ["activate_role", "foreground_stack", "stop"],
+      "required": true,
+      "summary": "Core owns provider selection and managed application lifecycle."
+    },
+    {
+      "target": "role:task-switcher",
+      "methods": ["show"],
+      "required": false,
+      "summary": "Recents navigation delegates presentation without transferring window policy."
+    }
+  ],
+  "errors": {
+    "WINDOW_POLICY_ERROR": {"summary": "The provider could not parse or execute the operation; no replay is implied.", "retryable": false}
+  }
+}

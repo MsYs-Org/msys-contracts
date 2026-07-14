@@ -1,0 +1,38 @@
+{
+  "schema": "msys.manifest.v1",
+  "package": {
+    "id": "org.example.electron",
+    "name": "Electron Example",
+    "version": "1.0.0",
+    "kind": "application",
+    "summary": "Electron application running as a normal MSYS component"
+  },
+  "components": [
+    {
+      "id": "main",
+      "runtime": "electron",
+      "exec": ["files/runtime/electron/electron", "files/app"],
+      "lifecycle": "manual",
+      "restart": "never",
+      "readiness": {"mode": "exec", "timeout_ms": 8000},
+      "windowing": {
+        "system": "x11",
+        "display": "inherit",
+        "mode": "window",
+        "title": "Electron Example",
+        "identity": {
+          "app_id": "org.example.electron",
+          "x11_wm_class": "ExampleElectron"
+        }
+      },
+      "env": {
+        "ELECTRON_ENABLE_LOGGING": "1"
+      },
+      "activation": {
+        "launchable": true,
+        "intents": [{"action": "open-uri", "schemes": ["https"]}]
+      },
+      "permissions": ["display:x11", "network:client"]
+    }
+  ]
+}

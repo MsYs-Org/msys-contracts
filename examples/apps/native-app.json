@@ -1,0 +1,47 @@
+{
+  "schema": "msys.manifest.v1",
+  "package": {
+    "id": "org.example.native",
+    "name": "Native Example",
+    "version": "1.0.0",
+    "kind": "application",
+    "summary": "C or C++ native X11 application"
+  },
+  "components": [
+    {
+      "id": "main",
+      "runtime": "cpp",
+      "exec": ["files/bin/native-example"],
+      "lifecycle": "manual",
+      "restart": "never",
+      "readiness": {"mode": "exec", "timeout_ms": 3000},
+      "windowing": {
+        "system": "x11",
+        "display": "inherit",
+        "mode": "window",
+        "title": "Native C/C++ Example",
+        "identity": {
+          "app_id": "org.example.native",
+          "x11_wm_class": "ExampleNative"
+        }
+      },
+      "activation": {
+        "launchable": true,
+        "intents": [{"action": "open-mime", "mime": ["text/plain"]}]
+      },
+      "isolation": {
+        "profile": "custom",
+        "failure": "fail-closed",
+        "namespaces": ["mount", "ipc", "uts"],
+        "no_new_privs": true,
+        "dumpable": false,
+        "rlimits": {
+          "core": 0,
+          "nofile": {"soft": 256, "hard": 256}
+        },
+        "seccomp": "off"
+      },
+      "permissions": ["display:x11"]
+    }
+  ]
+}

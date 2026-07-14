@@ -1,0 +1,65 @@
+{
+  "$schema": "https://msys.local/schemas/role-contract.v1.json",
+  "schema": "msys.role-contract.v1",
+  "id": "org.msys.role.navigation-bar.v1",
+  "role": "navigation-bar",
+  "version": "1.0.0",
+  "status": "stable",
+  "summary": "Presents replaceable three-button, gesture-pill, or profile-defined navigation UI and delegates every action to window-manager.",
+  "channel": "mipc",
+  "target": "role:navigation-bar",
+  "provider": {
+    "exclusive": true,
+    "readiness_modes": ["mipc-ready"],
+    "lifecycle_modes": ["background", "session"],
+    "windowing_required": true,
+    "windowing_modes": ["overlay"],
+    "required_interfaces": [],
+    "required_capabilities": [],
+    "requires_control_channel": true
+  },
+  "types": {
+    "legacy-navigation-event": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": {"enum": ["show", "hide", "toggle"]}
+      },
+      "additionalProperties": true
+    }
+  },
+  "methods": [],
+  "events": [
+    {
+      "topic": "msys.role.navigation-bar",
+      "direction": "subscribe",
+      "required": false,
+      "payload": {"$ref": "#/types/legacy-navigation-event"},
+      "summary": "Compatibility presentation command; new layout and provider selection are profile/role operations."
+    },
+    {
+      "topic": "msys.role.ready",
+      "direction": "publish",
+      "required": false,
+      "payload": {
+        "type": "object",
+        "properties": {
+          "role": {"const": "navigation-bar"},
+          "mode": {"enum": ["three-button", "pill", "none"]}
+        },
+        "additionalProperties": true
+      },
+      "summary": "Optional presentation diagnostic in addition to the authoritative mIPC ready frame."
+    }
+  ],
+  "artifacts": [],
+  "dependencies": [
+    {
+      "target": "role:window-manager",
+      "methods": ["navigation_action"],
+      "required": true,
+      "summary": "Back, Home, and Apps are typed requests; the bar never guesses process names, kills windows, or activates a fixed launcher component."
+    }
+  ],
+  "errors": {}
+}

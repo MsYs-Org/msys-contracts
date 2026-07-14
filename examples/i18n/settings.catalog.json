@@ -1,0 +1,23 @@
+{
+  "$schema": "https://msys.local/schemas/i18n-catalog.v1.json",
+  "schema": "msys.i18n.catalog.v1",
+  "id": "org.msys.settings",
+  "description": "Settings application strings",
+  "default_locale": "en-US",
+  "messages": {
+    "en-US": {
+      "window.title": "Settings",
+      "category.network": "Network & wireless",
+      "wifi.connected": "Connected to {ssid}",
+      "update.available": "Version {version} is available",
+      "literal.braces": "Use {{ and }} as literal braces"
+    },
+    "zh-CN": {
+      "window.title": "设置",
+      "category.network": "网络和无线连接",
+      "wifi.connected": "已连接到 {ssid}",
+      "update.available": "版本 {version} 可用",
+      "literal.braces": "使用 {{ 和 }} 表示花括号"
+    }
+  }
+}

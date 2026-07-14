@@ -1,0 +1,85 @@
+{
+  "$schema": "https://msys.local/schemas/role-contract.v1.json",
+  "schema": "msys.role-contract.v1",
+  "id": "org.msys.role.display-output.v1",
+  "role": "display-output",
+  "version": "1.0.0",
+  "status": "stable",
+  "summary": "Owns one concrete live display generation and publishes its observed geometry and input transform as an atomic readiness document.",
+  "channel": "supervisor-lifecycle",
+  "target": "role:display-output",
+  "provider": {
+    "exclusive": true,
+    "readiness_modes": ["x11-display"],
+    "lifecycle_modes": ["background", "session"],
+    "windowing_required": true,
+    "windowing_modes": ["display-provider"],
+    "required_interfaces": [],
+    "required_capabilities": ["display.session.v1"],
+    "requires_control_channel": false
+  },
+  "types": {
+    "geometry": {
+      "type": "object",
+      "required": ["width", "height", "depth"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "height": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "depth": {"type": "integer", "minimum": 0, "maximum": 128}
+      },
+      "additionalProperties": false
+    },
+    "input-transform": {
+      "type": "object",
+      "required": ["enabled", "mode", "device", "space", "matrix", "source", "verified"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "mode": {"type": "string", "minLength": 1, "maxLength": 64},
+        "device": {"type": ["string", "null"], "maxLength": 256},
+        "space": {"const": "normalized-display"},
+        "matrix": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "array",
+              "minItems": 9,
+              "maxItems": 9,
+              "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}
+            }
+          ]
+        },
+        "source": {"type": "string", "minLength": 1, "maxLength": 128},
+        "verified": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "display-session": {
+      "type": "object",
+      "required": ["schema", "state", "provider", "generation", "display", "geometry", "input_transform", "observed_at_unix_ms"],
+      "properties": {
+        "schema": {"const": "msys.display-session.v1"},
+        "state": {"const": "ready"},
+        "provider": {"type": "string", "minLength": 1, "maxLength": 256},
+        "generation": {"type": "integer", "minimum": 0},
+        "display": {"type": "string", "pattern": "^:[0-9]+(?:\\.[0-9]+)?$"},
+        "geometry": {"$ref": "#/types/geometry"},
+        "input_transform": {"$ref": "#/types/input-transform"},
+        "observed_at_unix_ms": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "methods": [],
+  "events": [],
+  "artifacts": [
+    {
+      "name": "display-session",
+      "transport": "readiness-document",
+      "required": true,
+      "payload": {"$ref": "#/types/display-session"},
+      "summary": "The provider atomically replaces MSYS_X11_READY_FILE only after a real display probe; filename existence alone is never readiness."
+    }
+  ],
+  "dependencies": [],
+  "errors": {}
+}

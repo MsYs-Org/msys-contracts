@@ -1,0 +1,262 @@
+{
+  "$schema": "https://msys.local/schemas/role-contract.v1.json",
+  "schema": "msys.role-contract.v1",
+  "id": "org.msys.role.hal-manager.v1",
+  "role": "hal-manager",
+  "version": "1.0.0",
+  "status": "stable",
+  "summary": "Discovers language-neutral HAL providers, owns per-domain selection, routes bounded typed state operations, and exposes revisioned observation.",
+  "channel": "mipc",
+  "target": "role:hal-manager",
+  "provider": {
+    "exclusive": true,
+    "readiness_modes": ["mipc-ready"],
+    "lifecycle_modes": ["background", "session", "on-demand"],
+    "windowing_required": false,
+    "required_interfaces": ["org.msys.hal.manager.v1"],
+    "required_capabilities": [],
+    "requires_control_channel": true
+  },
+  "types": {
+    "domain": {"type": "string", "pattern": "^[a-z][a-z0-9.-]{0,63}$"},
+    "device-id": {"type": "string", "pattern": "^[a-z][a-z0-9.-]{0,63}:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "component-id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*(?:\\.[a-z0-9][a-z0-9_-]*)+:[a-z][a-z0-9._-]*$"
+    },
+    "domains": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {"$ref": "#/types/domain"}
+    },
+    "revision": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+    "manager-result": {
+      "type": "object",
+      "required": ["schema", "revision"],
+      "properties": {
+        "schema": {"const": "org.msys.hal.manager.v1"},
+        "revision": {"$ref": "#/types/revision"}
+      },
+      "additionalProperties": true
+    },
+    "refresh-request": {
+      "type": "object",
+      "properties": {
+        "domains": {"$ref": "#/types/domains"},
+        "refresh": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "state-request": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": {"$ref": "#/types/device-id"},
+        "refresh": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "methods": [
+    {
+      "name": "inventory",
+      "summary": "Return bounded domain status and devices; absent hardware is structured unavailable state, not a process failure.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": false,
+      "request": {"$ref": "#/types/refresh-request"},
+      "response": {"$ref": "#/types/manager-result"},
+      "errors": ["HAL_BAD_PAYLOAD", "HAL_PROVIDER_ERROR", "HAL_BUSY", "HAL_INTERNAL_ERROR"],
+      "conformance": [{"id": "inventory", "mode": "safe", "request": {}, "expect": {"type": "return"}}]
+    },
+    {
+      "name": "get_state",
+      "summary": "Read typed state for one stable device id through its selected domain provider.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": false,
+      "request": {"$ref": "#/types/state-request"},
+      "response": {"$ref": "#/types/manager-result"},
+      "errors": ["HAL_BAD_PAYLOAD", "HAL_UNAVAILABLE", "HAL_PROVIDER_ERROR", "HAL_BUSY", "HAL_INTERNAL_ERROR"],
+      "conformance": [
+        {"id": "reject-missing-id", "mode": "safe", "request": {}, "expect": {"type": "error", "codes": ["HAL_BAD_PAYLOAD"]}}
+      ]
+    },
+    {
+      "name": "set_state",
+      "summary": "Apply domain-specific fields only; arbitrary host paths and undeclared writes are forbidden.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": false,
+      "mutates": true,
+      "request": {
+        "type": "object",
+        "required": ["id", "changes"],
+        "properties": {
+          "id": {"$ref": "#/types/device-id"},
+          "changes": {"type": "object", "minProperties": 1, "maxProperties": 64, "additionalProperties": true}
+        },
+        "additionalProperties": false
+      },
+      "response": {"$ref": "#/types/manager-result"},
+      "errors": ["HAL_BAD_PAYLOAD", "HAL_UNAVAILABLE", "HAL_READ_ONLY", "HAL_PROVIDER_ERROR", "HAL_BUSY", "HAL_INTERNAL_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "list_providers",
+      "summary": "List deterministic provider candidates, optionally filtered and probed for one domain.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": false,
+      "request": {
+        "type": "object",
+        "properties": {
+          "domain": {"$ref": "#/types/domain"},
+          "refresh": {"type": "boolean"},
+          "probe": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      },
+      "response": {"$ref": "#/types/manager-result"},
+      "errors": ["HAL_BAD_PAYLOAD", "HAL_PROVIDER_ERROR", "HAL_BUSY", "HAL_INTERNAL_ERROR"],
+      "conformance": [{"id": "provider-catalog", "mode": "safe", "request": {}, "expect": {"type": "return"}}]
+    },
+    {
+      "name": "get_provider",
+      "summary": "Return one exact candidate or the effective candidate for a domain, with optional observational probe.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": false,
+      "request": {
+        "type": "object",
+        "required": ["domain"],
+        "properties": {
+          "domain": {"$ref": "#/types/domain"},
+          "component": {"$ref": "#/types/component-id"},
+          "refresh": {"type": "boolean"},
+          "probe": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      },
+      "response": {"$ref": "#/types/manager-result"},
+      "errors": ["HAL_BAD_PAYLOAD", "HAL_PROVIDER_ERROR", "HAL_BUSY", "HAL_INTERNAL_ERROR"],
+      "conformance": [
+        {"id": "reject-missing-domain", "mode": "safe", "request": {}, "expect": {"type": "error", "codes": ["HAL_BAD_PAYLOAD"]}}
+      ]
+    },
+    {
+      "name": "select_provider",
+      "summary": "Preflight and atomically pin one discovered provider for a domain with optional optimistic revision check.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": false,
+      "mutates": true,
+      "request": {
+        "type": "object",
+        "required": ["domain"],
+        "properties": {
+          "domain": {"$ref": "#/types/domain"},
+          "component": {"type": ["string", "null"], "maxLength": 255},
+          "expected_revision": {"$ref": "#/types/revision"},
+          "allow_unavailable": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      },
+      "response": {"$ref": "#/types/manager-result"},
+      "errors": ["HAL_BAD_PAYLOAD", "HAL_UNAVAILABLE", "HAL_PROVIDER_ERROR", "HAL_PERSISTENCE_ERROR", "HAL_CONFLICT", "HAL_BUSY", "HAL_INTERNAL_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "reset_provider",
+      "summary": "Atomically remove a domain pin and return to deterministic automatic provider selection.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": false,
+      "mutates": true,
+      "request": {
+        "type": "object",
+        "required": ["domain"],
+        "properties": {
+          "domain": {"$ref": "#/types/domain"},
+          "expected_revision": {"$ref": "#/types/revision"}
+        },
+        "additionalProperties": false
+      },
+      "response": {"$ref": "#/types/manager-result"},
+      "errors": ["HAL_BAD_PAYLOAD", "HAL_PERSISTENCE_ERROR", "HAL_CONFLICT", "HAL_BUSY", "HAL_INTERNAL_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "watch",
+      "summary": "Bounded long-poll for revisioned HAL changes, optionally filtered by domain.",
+      "since": "1.0.0",
+      "required": true,
+      "idempotent": true,
+      "mutates": false,
+      "request": {
+        "type": "object",
+        "properties": {
+          "after_revision": {"$ref": "#/types/revision"},
+          "timeout_ms": {"type": "integer", "minimum": 0, "maximum": 25000},
+          "domains": {"$ref": "#/types/domains"}
+        },
+        "additionalProperties": false
+      },
+      "response": {"$ref": "#/types/manager-result"},
+      "errors": ["HAL_BAD_PAYLOAD", "HAL_BUSY", "HAL_INTERNAL_ERROR"],
+      "conformance": [{"id": "poll-current", "mode": "safe", "request": {"timeout_ms": 0}, "expect": {"type": "return"}}]
+    }
+  ],
+  "events": [
+    {
+      "topic": "msys.hal.changed",
+      "direction": "publish",
+      "required": true,
+      "payload": {
+        "type": "object",
+        "required": ["revision", "kind", "domain"],
+        "properties": {
+          "revision": {"$ref": "#/types/revision"},
+          "kind": {"type": "string", "minLength": 1, "maxLength": 64},
+          "domain": {"type": "string", "minLength": 1, "maxLength": 64},
+          "id": {"$ref": "#/types/device-id"},
+          "provider": {"type": "string", "maxLength": 255},
+          "selection": {"enum": ["automatic", "manual"]}
+        },
+        "additionalProperties": false
+      },
+      "summary": "Best-effort wake-up hint paired with the authoritative watch(after_revision) recovery path."
+    }
+  ],
+  "artifacts": [],
+  "dependencies": [
+    {
+      "target": "msys.core",
+      "methods": ["discover"],
+      "required": true,
+      "summary": "Discovers catalog providers by interface without importing provider implementation code."
+    },
+    {
+      "target": "interface:org.msys.hal.provider.v1",
+      "methods": ["describe", "inventory", "get_state", "set_state"],
+      "required": true,
+      "summary": "Calls exact discovered components using the common HAL provider protocol and catalog-backed ACL edge."
+    }
+  ],
+  "errors": {
+    "HAL_BAD_PAYLOAD": {"summary": "Invalid type, field, id, bound, or empty changes object.", "retryable": false},
+    "HAL_UNKNOWN_METHOD": {"summary": "The requested method is outside the v1 manager surface.", "retryable": false},
+    "HAL_UNAVAILABLE": {"summary": "The requested hardware or required route is currently unavailable.", "retryable": true},
+    "HAL_READ_ONLY": {"summary": "The requested write is not implemented by the selected provider.", "retryable": false},
+    "HAL_PROVIDER_ERROR": {"summary": "A provider transport or protocol operation failed.", "retryable": true},
+    "HAL_PERSISTENCE_ERROR": {"summary": "Atomic selection persistence failed and in-memory state was restored.", "retryable": true},
+    "HAL_CONFLICT": {"summary": "expected_revision is stale; reload before retrying.", "retryable": true},
+    "HAL_BUSY": {"summary": "The bounded manager request queue is full.", "retryable": true},
+    "HAL_INTERNAL_ERROR": {"summary": "A redacted unexpected implementation failure occurred.", "retryable": false}
+  }
+}
