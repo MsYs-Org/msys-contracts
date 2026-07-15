@@ -22,10 +22,13 @@ Normative JSON contracts:
 - [`msys.role-contract.v1`](schemas/role-contract.v1.schema.json) defines
   versioned, language-neutral role methods, payloads, events, lifecycle
   artifacts, and provider conformance cases. The initial catalog covers
-  launcher, window manager, navigation bar, display output, and HAL manager;
+  launcher, window manager, navigation bar, display output, HAL manager, and
+  audio manager;
   see [`specs/versioned-role-contracts.md`](specs/versioned-role-contracts.md).
 - [`MSYS HAL v1`](specs/hal.md) defines replaceable hardware discovery,
   state, provider selection, and watch semantics over mIPC.
+- [`MSYS audio manager v1`](specs/audio.md) keeps PCM outside mIPC while
+  standardizing replaceable output, volume, mute, Bluetooth, and player control.
 - [`msys.i18n.catalog.v1`](schemas/i18n-catalog.v1.schema.json) defines static,
   language-neutral UI catalogs (including reusable zh bases and en-US), deterministic locale fallback, and
   safe named placeholders; see [`specs/i18n.md`](specs/i18n.md).

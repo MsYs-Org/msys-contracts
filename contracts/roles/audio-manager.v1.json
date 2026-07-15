@@ -1,0 +1,239 @@
+{
+  "$schema": "https://msys.local/schemas/role-contract.v1.json",
+  "schema": "msys.role-contract.v1",
+  "id": "org.msys.role.audio-manager.v1",
+  "role": "audio-manager",
+  "version": "1.0.1",
+  "status": "stable",
+  "summary": "Selects audio outputs and controls bounded volume, mute, Bluetooth device lifecycle, and an optional player without carrying audio samples over mIPC.",
+  "channel": "mipc",
+  "target": "role:audio-manager",
+  "provider": {
+    "exclusive": true,
+    "readiness_modes": ["mipc-ready"],
+    "lifecycle_modes": ["background", "session", "on-demand"],
+    "windowing_required": false,
+    "required_interfaces": ["org.msys.audio.manager.v1"],
+    "required_capabilities": [],
+    "requires_control_channel": true
+  },
+  "types": {
+    "empty": {"type": "object", "additionalProperties": false},
+    "address": {"type": "string", "pattern": "^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$"},
+    "output-id": {"type": "string", "minLength": 1, "maxLength": 96},
+    "volume": {"type": "integer", "minimum": 0, "maximum": 100},
+    "device": {
+      "type": "object",
+      "required": ["address", "name", "paired", "connected"],
+      "properties": {
+        "address": {"$ref": "#/types/address"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 248},
+        "alias": {"type": "string", "maxLength": 248},
+        "icon": {"type": "string", "maxLength": 64},
+        "paired": {"type": "boolean"},
+        "trusted": {"type": "boolean"},
+        "connected": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "scan-result": {
+      "type": "object",
+      "required": ["discovery_started", "duration_ms", "transport", "result", "diagnostic"],
+      "properties": {
+        "discovery_started": {"type": "boolean"},
+        "duration_ms": {"type": "integer", "minimum": 0, "maximum": 30000},
+        "transport": {"const": "private-bluez"},
+        "result": {"enum": ["devices-found", "no-devices"]},
+        "diagnostic": {"type": "string", "maxLength": 128}
+      },
+      "additionalProperties": false
+    },
+    "output": {
+      "type": "object",
+      "required": ["id", "address", "name", "profile", "connected", "mixer_control", "volume_percent", "muted"],
+      "properties": {
+        "id": {"$ref": "#/types/output-id"},
+        "address": {"$ref": "#/types/address"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 248},
+        "profile": {"type": "string", "minLength": 1, "maxLength": 32},
+        "connected": {"type": "boolean"},
+        "mixer_control": {"type": ["string", "null"], "maxLength": 248},
+        "volume_percent": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+        "muted": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "devices": {
+      "type": "object",
+      "required": ["schema", "devices"],
+      "properties": {
+        "schema": {"const": "msys.audio-devices.v1"},
+        "devices": {"type": "array", "maxItems": 32, "items": {"$ref": "#/types/device"}},
+        "scan": {"$ref": "#/types/scan-result"}
+      },
+      "additionalProperties": false
+    },
+    "outputs": {
+      "type": "object",
+      "required": ["schema", "outputs"],
+      "properties": {
+        "schema": {"const": "msys.audio-outputs.v1"},
+        "outputs": {"type": "array", "maxItems": 16, "items": {"$ref": "#/types/output"}}
+      },
+      "additionalProperties": false
+    },
+    "device-action-result": {
+      "type": "object",
+      "required": ["ok", "operation", "address", "devices"],
+      "properties": {
+        "ok": {"const": true},
+        "operation": {"enum": ["pair", "connect", "disconnect", "forget"]},
+        "address": {"$ref": "#/types/address"},
+        "devices": {"type": "array", "maxItems": 32, "items": {"$ref": "#/types/device"}}
+      },
+      "additionalProperties": false
+    },
+    "state": {
+      "type": "object",
+      "required": ["schema", "backend", "available", "reason", "volume_percent", "muted", "stack", "outputs", "player"],
+      "properties": {
+        "schema": {"const": "msys.audio-state.v1"},
+        "backend": {"type": "string", "minLength": 1, "maxLength": 32},
+        "available": {"type": "boolean"},
+        "reason": {"type": ["string", "null"], "maxLength": 96},
+        "volume_percent": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+        "muted": {"type": ["boolean", "null"]},
+        "stack": {"type": "array", "maxItems": 8, "items": {"type": "object", "additionalProperties": true}},
+        "outputs": {"type": "array", "maxItems": 16, "items": {"$ref": "#/types/output"}},
+        "player": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "address-request": {
+      "type": "object",
+      "required": ["address"],
+      "properties": {"address": {"$ref": "#/types/address"}},
+      "additionalProperties": false
+    },
+    "output-request": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/types/output-id"},
+        "address": {"$ref": "#/types/address"}
+      },
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false
+    }
+  },
+  "methods": [
+    {
+      "name": "get_state", "summary": "Return the private stack, controller, active output, volume, mute, and player state.",
+      "since": "1.0.0", "required": true, "idempotent": true, "mutates": false,
+      "request": {"type": "object", "properties": {"refresh": {"type": "boolean"}}, "additionalProperties": false},
+      "response": {"$ref": "#/types/state"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_INTERNAL"],
+      "conformance": [{"id": "state", "mode": "safe", "request": {}, "expect": {"type": "return"}}]
+    },
+    {
+      "name": "list_outputs", "summary": "List bounded connected playback outputs and their mixer controls.",
+      "since": "1.0.0", "required": true, "idempotent": true, "mutates": false,
+      "request": {"type": "object", "properties": {"refresh": {"type": "boolean"}}, "additionalProperties": false},
+      "response": {"$ref": "#/types/outputs"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_COMMAND_FAILED", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "list_devices", "summary": "List bounded devices known by the provider-private BlueZ instance.",
+      "since": "1.0.0", "required": true, "idempotent": true, "mutates": false,
+      "request": {"type": "object", "properties": {"refresh": {"type": "boolean"}}, "additionalProperties": false},
+      "response": {"$ref": "#/types/devices"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_COMMAND_FAILED", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "set_volume", "summary": "Set software or native A2DP volume for one connected output.",
+      "since": "1.0.0", "required": true, "idempotent": false, "mutates": true,
+      "request": {"type": "object", "required": ["percent"], "properties": {"percent": {"$ref": "#/types/volume"}, "output": {"$ref": "#/types/output-id"}}, "additionalProperties": false},
+      "response": {"$ref": "#/types/state"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_NO_OUTPUT", "AUDIO_NO_MIXER", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "set_muted", "summary": "Mute or unmute one connected output.",
+      "since": "1.0.0", "required": true, "idempotent": false, "mutates": true,
+      "request": {"type": "object", "required": ["muted"], "properties": {"muted": {"type": "boolean"}, "output": {"$ref": "#/types/output-id"}}, "additionalProperties": false},
+      "response": {"$ref": "#/types/state"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_NO_OUTPUT", "AUDIO_NO_MIXER", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "scan", "summary": "Run a bounded BlueZ discovery interval and return known devices.",
+      "since": "1.0.0", "required": false, "idempotent": false, "mutates": true,
+      "request": {"type": "object", "properties": {"timeout_ms": {"type": "integer", "minimum": 1000, "maximum": 30000}}, "additionalProperties": false},
+      "response": {"$ref": "#/types/devices"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_UNAVAILABLE", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "pair", "summary": "Pair one validated Bluetooth address through the provider-private BlueZ instance.",
+      "since": "1.0.0", "required": false, "idempotent": false, "mutates": true,
+      "request": {"$ref": "#/types/address-request"}, "response": {"$ref": "#/types/device-action-result"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_UNAVAILABLE", "AUDIO_AGENT_UNAVAILABLE", "AUDIO_PAIR_TIMEOUT", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "connect", "summary": "Connect one paired Bluetooth device.",
+      "since": "1.0.0", "required": false, "idempotent": false, "mutates": true,
+      "request": {"$ref": "#/types/address-request"}, "response": {"$ref": "#/types/device-action-result"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_UNAVAILABLE", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "disconnect", "summary": "Disconnect one Bluetooth device and stop an output-bound player.",
+      "since": "1.0.0", "required": false, "idempotent": false, "mutates": true,
+      "request": {"$ref": "#/types/address-request"}, "response": {"$ref": "#/types/device-action-result"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_UNAVAILABLE", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "forget", "summary": "Remove one paired Bluetooth device from MSYS-owned BlueZ storage.",
+      "since": "1.0.0", "required": false, "idempotent": false, "mutates": true,
+      "request": {"$ref": "#/types/address-request"}, "response": {"$ref": "#/types/device-action-result"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_UNAVAILABLE", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "select_output", "summary": "Persist one connected output as the player and Quick Controls destination.",
+      "since": "1.0.0", "required": false, "idempotent": false, "mutates": true,
+      "request": {"$ref": "#/types/output-request"}, "response": {"$ref": "#/types/state"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_NO_OUTPUT", "AUDIO_COMMAND_FAILED", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "configure_player", "summary": "Enable or disable squeezelite with a bounded name and optional server.",
+      "since": "1.0.0", "required": false, "idempotent": false, "mutates": true,
+      "request": {"type": "object", "properties": {"enabled": {"type": "boolean"}, "server": {"type": "string", "maxLength": 255}, "name": {"type": "string", "minLength": 1, "maxLength": 64}}, "minProperties": 1, "additionalProperties": false},
+      "response": {"$ref": "#/types/state"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_NO_OUTPUT", "AUDIO_BACKEND_ERROR", "AUDIO_INTERNAL"], "conformance": []
+    },
+    {
+      "name": "restart_stack", "summary": "Restart only this provider's private bus and audio children.",
+      "since": "1.0.0", "required": false, "idempotent": false, "mutates": true,
+      "request": {"$ref": "#/types/empty"}, "response": {"$ref": "#/types/state"},
+      "errors": ["AUDIO_BAD_PAYLOAD", "AUDIO_STACK_FAILED", "AUDIO_INTERNAL"], "conformance": []
+    }
+  ],
+  "events": [
+    {
+      "topic": "msys.audio.changed", "direction": "publish", "required": false,
+      "payload": {"type": "object", "required": ["schema"], "properties": {"schema": {"const": "msys.audio-changed.v1"}}, "additionalProperties": true},
+      "summary": "Best-effort wake-up after a successful mutating operation."
+    }
+  ],
+  "artifacts": [],
+  "dependencies": [],
+  "errors": {
+    "AUDIO_BAD_PAYLOAD": {"summary": "Invalid field, type, address, output, or bound.", "retryable": false},
+    "AUDIO_NO_METHOD": {"summary": "The requested method is outside the audio-manager v1 surface.", "retryable": false},
+    "AUDIO_UNAVAILABLE": {"summary": "The Bluetooth controller is not currently usable.", "retryable": true},
+    "AUDIO_NO_OUTPUT": {"summary": "No matching connected Bluetooth audio output exists.", "retryable": true},
+    "AUDIO_NO_MIXER": {"summary": "The output exposes no BlueALSA mixer control.", "retryable": true},
+    "AUDIO_BACKEND_ERROR": {"summary": "A bounded BlueZ, BlueALSA, ALSA, or player command failed.", "retryable": true},
+    "AUDIO_COMMAND_FAILED": {"summary": "A bounded provider-private command failed or returned an error.", "retryable": true},
+    "AUDIO_AGENT_UNAVAILABLE": {"summary": "The provider-private BlueZ pairing agent could not register.", "retryable": true},
+    "AUDIO_PAIR_TIMEOUT": {"summary": "Bluetooth pairing did not complete within the bounded interval.", "retryable": true},
+    "AUDIO_STACK_FAILED": {"summary": "The provider-private process graph could not start.", "retryable": true},
+    "AUDIO_INTERNAL": {"summary": "A redacted unexpected provider failure occurred.", "retryable": false}
+  }
+}

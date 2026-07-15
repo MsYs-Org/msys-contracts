@@ -33,7 +33,14 @@ class RoleContractCatalogTests(unittest.TestCase):
     def test_all_baseline_roles_are_machine_valid(self):
         self.assertEqual(
             set(self.contracts),
-            {"launcher", "window-manager", "navigation-bar", "display-output", "hal-manager"},
+            {
+                "launcher",
+                "window-manager",
+                "navigation-bar",
+                "display-output",
+                "hal-manager",
+                "audio-manager",
+            },
         )
         for path, document in self.loaded:
             with self.subTest(path=path):
@@ -102,6 +109,150 @@ class RoleContractCatalogTests(unittest.TestCase):
         contract = self.contracts["launcher"]
         errors = validate_instance(True, {"type": "integer"}, contract)
         self.assertTrue(errors)
+
+    def test_audio_manager_device_and_mixer_surface_is_typed(self):
+        contract = self.contracts["audio-manager"]
+        methods = {method["name"]: method for method in contract["methods"]}
+        self.assertEqual(methods["list_devices"]["response"], {"$ref": "#/types/devices"})
+        self.assertEqual(methods["scan"]["response"], {"$ref": "#/types/devices"})
+        for name in ("pair", "connect", "disconnect", "forget"):
+            self.assertEqual(
+                methods[name]["response"],
+                {"$ref": "#/types/device-action-result"},
+            )
+        for name in ("select_output", "set_volume", "set_muted"):
+            self.assertEqual(methods[name]["response"], {"$ref": "#/types/state"})
+
+        device = {
+            "address": "AA:BB:CC:DD:EE:FF",
+            "name": "Headphones",
+            "alias": "Headphones",
+            "icon": "audio-card",
+            "paired": True,
+            "trusted": False,
+            "connected": True,
+        }
+        devices = {"schema": "msys.audio-devices.v1", "devices": [device]}
+        self.assertEqual(validate_instance(devices, methods["scan"]["response"], contract), [])
+        scanned = copy.deepcopy(devices)
+        scanned["scan"] = {
+            "discovery_started": True,
+            "duration_ms": 15000,
+            "transport": "private-bluez",
+            "result": "devices-found",
+            "diagnostic": "discovery-complete",
+        }
+        self.assertEqual(validate_instance(scanned, methods["scan"]["response"], contract), [])
+        invalid_scan = copy.deepcopy(scanned)
+        invalid_scan["scan"]["duration_ms"] = 30001
+        self.assertTrue(validate_instance(invalid_scan, methods["scan"]["response"], contract))
+        action = {
+            "ok": True,
+            "operation": "connect",
+            "address": "AA:BB:CC:DD:EE:FF",
+            "devices": [device],
+        }
+        self.assertEqual(validate_instance(action, methods["connect"]["response"], contract), [])
+        output = {
+            "id": "bluealsa:AA:BB:CC:DD:EE:FF:a2dp",
+            "address": "AA:BB:CC:DD:EE:FF",
+            "name": "Headphones",
+            "profile": "a2dp",
+            "connected": True,
+            "mixer_control": "Headphones - A2DP",
+            "volume_percent": 70,
+            "muted": False,
+        }
+        outputs = {"schema": "msys.audio-outputs.v1", "outputs": [output]}
+        self.assertEqual(
+            validate_instance(outputs, methods["list_outputs"]["response"], contract),
+            [],
+        )
+        state = {
+            "schema": "msys.audio-state.v1",
+            "backend": "bluealsa",
+            "available": True,
+            "reason": None,
+            "volume_percent": 70,
+            "muted": False,
+            "stack": [],
+            "outputs": [output],
+            "player": {},
+        }
+        self.assertEqual(
+            validate_instance(state, methods["set_volume"]["response"], contract),
+            [],
+        )
+
+        invalid_device = copy.deepcopy(devices)
+        invalid_device["devices"][0]["connected"] = "yes"
+        self.assertTrue(validate_instance(invalid_device, methods["scan"]["response"], contract))
+        invalid_action = copy.deepcopy(action)
+        invalid_action["operation"] = "trust"
+        self.assertTrue(validate_instance(invalid_action, methods["connect"]["response"], contract))
+        invalid_output = copy.deepcopy(outputs)
+        invalid_output["outputs"][0]["volume_percent"] = 101
+        self.assertTrue(
+            validate_instance(invalid_output, methods["list_outputs"]["response"], contract)
+        )
+
+    def test_audio_manager_requests_and_real_errors_are_complete(self):
+        contract = self.contracts["audio-manager"]
+        methods = {method["name"]: method for method in contract["methods"]}
+        required_errors = {
+            "list_devices": {"AUDIO_COMMAND_FAILED"},
+            "scan": {"AUDIO_UNAVAILABLE", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR"},
+            "pair": {
+                "AUDIO_UNAVAILABLE",
+                "AUDIO_AGENT_UNAVAILABLE",
+                "AUDIO_PAIR_TIMEOUT",
+                "AUDIO_COMMAND_FAILED",
+                "AUDIO_BACKEND_ERROR",
+            },
+            "connect": {"AUDIO_UNAVAILABLE", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR"},
+            "disconnect": {"AUDIO_UNAVAILABLE", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR"},
+            "forget": {"AUDIO_UNAVAILABLE", "AUDIO_COMMAND_FAILED", "AUDIO_BACKEND_ERROR"},
+            "select_output": {"AUDIO_NO_OUTPUT", "AUDIO_COMMAND_FAILED"},
+            "set_volume": {
+                "AUDIO_NO_OUTPUT",
+                "AUDIO_NO_MIXER",
+                "AUDIO_COMMAND_FAILED",
+                "AUDIO_BACKEND_ERROR",
+            },
+            "set_muted": {
+                "AUDIO_NO_OUTPUT",
+                "AUDIO_NO_MIXER",
+                "AUDIO_COMMAND_FAILED",
+                "AUDIO_BACKEND_ERROR",
+            },
+        }
+        for name, expected in required_errors.items():
+            with self.subTest(method=name):
+                self.assertIn("AUDIO_BAD_PAYLOAD", methods[name]["errors"])
+                self.assertIn("AUDIO_INTERNAL", methods[name]["errors"])
+                self.assertTrue(expected.issubset(set(methods[name]["errors"])))
+        self.assertIn("AUDIO_NO_METHOD", contract["errors"])
+
+        good_requests = {
+            "list_devices": {"refresh": True},
+            "scan": {"timeout_ms": 8000},
+            "pair": {"address": "aa:bb:cc:dd:ee:ff"},
+            "connect": {"address": "AA:BB:CC:DD:EE:FF"},
+            "disconnect": {"address": "AA:BB:CC:DD:EE:FF"},
+            "forget": {"address": "AA:BB:CC:DD:EE:FF"},
+            "select_output": {"id": "bluealsa:AA:BB:CC:DD:EE:FF:a2dp"},
+            "set_volume": {"percent": 50},
+            "set_muted": {"muted": True},
+        }
+        for name, request in good_requests.items():
+            with self.subTest(method=name):
+                self.assertEqual(validate_instance(request, methods[name]["request"], contract), [])
+
+        self.assertTrue(validate_instance({"timeout_ms": True}, methods["scan"]["request"], contract))
+        self.assertTrue(validate_instance({"address": "not-a-mac"}, methods["pair"]["request"], contract))
+        self.assertTrue(validate_instance({"id": "one", "address": "AA:BB:CC:DD:EE:FF"}, methods["select_output"]["request"], contract))
+        self.assertTrue(validate_instance({"percent": 101}, methods["set_volume"]["request"], contract))
+        self.assertTrue(validate_instance({"muted": 1}, methods["set_muted"]["request"], contract))
 
     def test_bad_descriptor_reports_multiple_semantic_errors(self):
         document = copy.deepcopy(self.contracts["launcher"])
