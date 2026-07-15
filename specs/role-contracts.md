@@ -33,20 +33,24 @@ For example, the Back button must not guess process names or kill apps itself.
 It calls:
 
 ```text
-role:window-manager.close_active()
+role:window-manager.back()
 ```
 
-The active provider for `window-manager` decides how to close a window. On X11
-it may use Xlib/ICCCM. On a future Wayland-like compositor it may close a
-surface. During migration that component may also hold the `window-policy`
-compatibility lease.
+The active provider first offers Back to the foreground application's
+`org.msys.application-navigation.v1` interface. Only `handled:false`, or an
+application which does not provide that interface, allows the manager to
+restore the previous task or Home. `close_active()` remains a separate,
+explicit lifecycle operation. During migration the manager may also hold the
+`window-policy` compatibility lease.
 
 In the current MVP, `msysd` also keeps a foreground component stack for apps it
 started itself. This is the reliable first path for mobile navigation:
 
 - `start(component)` records foreground manual window components.
 - `role:window-manager.list_windows()` exposes that stack.
-- `role:window-manager.close_active()` stops the top foreground component.
+- `role:window-manager.back()` first navigates inside the top application.
+- Root-page Back restores the previous component or Home.
+- `role:window-manager.close_active()` explicitly stops the top component.
 
 Raw X11 window killing is only a fallback for unmanaged external windows.
 
@@ -127,8 +131,8 @@ claims use `role:window-manager`.
 ```text
 list_windows() -> { windows: [{ id, title }] }
 close_active() -> { ok, closed?, title?, reason? }
-close_active() -> { ok, closed_component? }  # current managed-component path
-back() -> alias of close_active for mobile profiles
+close_active() -> { ok, closed_component? }  # explicit lifecycle path
+back() -> { ok, destination: "application" | "component" | "home", ... }
 home() -> delegate to msys.core.activate_role({role:"launcher"})
 recents() -> list_windows()
 activate_component(component, identity, title) -> identity-first raise/map of an existing surface
@@ -148,7 +152,7 @@ show() -> { ok, visible, count }
 hide() -> { ok, visible }
 ```
 
-Back dismisses the task switcher before it closes the foreground application.
+Back dismisses the task switcher before it navigates the foreground application.
 Home raises the dynamically selected launcher rather than spawning a duplicate
 process. Window policy must not match a toolkit package id, a localized title,
 or the reference `MSYS Launcher` text to decide what Home means.
