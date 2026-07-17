@@ -5,7 +5,7 @@
   "role": "window-manager",
   "version": "1.0.0",
   "status": "stable",
-  "summary": "Owns toolkit-neutral foreground navigation, stable window handles, geometry operations, layout, and launcher activation.",
+  "summary": "Owns toolkit-neutral foreground navigation, stable window handles, geometry operations, layout, launcher activation, and component-scoped surface transitions.",
   "channel": "mipc",
   "target": "role:window-manager",
   "provider": {
@@ -143,6 +143,63 @@
         "height": {"type": "integer", "minimum": 1, "maximum": 32767}
       },
       "additionalProperties": false
+    },
+    "window-transition-request": {
+      "type": "object",
+      "required": ["component"],
+      "properties": {
+        "transition_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "action": {"enum": ["launch", "close"]},
+        "component": {"type": "string", "minLength": 1, "maxLength": 256},
+        "identity": {"type": "string", "maxLength": 256},
+        "icon": {"type": "string", "maxLength": 512},
+        "color": {
+          "type": "string",
+          "pattern": "^$|^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+        },
+        "origin": {"$ref": "#/types/geometry"},
+        "timeout_ms": {"type": "integer", "minimum": 100, "maximum": 30000}
+      },
+      "additionalProperties": false
+    },
+    "window-transition-result": {
+      "type": "object",
+      "required": ["ok"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "schema": {"const": "msys.window-transition.v1"},
+        "transition_id": {"type": "string", "maxLength": 96},
+        "action": {"enum": ["launch", "close"]},
+        "component": {"type": "string", "maxLength": 256},
+        "state": {"enum": ["waiting-surface", "cancelled"]},
+        "timeout_ms": {"type": "integer", "minimum": 100, "maximum": 30000},
+        "reason": {"type": "string", "maxLength": 64}
+      },
+      "additionalProperties": false
+    },
+    "window-transition-cancel-request": {
+      "type": "object",
+      "required": ["transition_id"],
+      "properties": {
+        "transition_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "methods": [
@@ -274,6 +331,59 @@
         "additionalProperties": false
       },
       "response": {"$ref": "#/types/operation-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "begin_launch_transition",
+      "summary": "Register a component-scoped launch transaction before process activation so a presenter can keep its mask until the first real surface maps.",
+      "since": "1.0.0",
+      "required": false,
+      "idempotent": false,
+      "mutates": true,
+      "request": {"$ref": "#/types/window-transition-request"},
+      "response": {"$ref": "#/types/window-transition-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "begin_transition",
+      "summary": "Generic launch/close transition entrypoint for clients that select the action dynamically.",
+      "since": "1.0.0",
+      "required": false,
+      "idempotent": false,
+      "mutates": true,
+      "request": {
+        "allOf": [
+          {"$ref": "#/types/window-transition-request"},
+          {"required": ["action"]}
+        ]
+      },
+      "response": {"$ref": "#/types/window-transition-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "begin_close_transition",
+      "summary": "Register a component-scoped close transaction and complete it only after the matching surface is gone.",
+      "since": "1.0.0",
+      "required": false,
+      "idempotent": false,
+      "mutates": true,
+      "request": {"$ref": "#/types/window-transition-request"},
+      "response": {"$ref": "#/types/window-transition-result"},
+      "errors": ["WINDOW_POLICY_ERROR"],
+      "conformance": []
+    },
+    {
+      "name": "cancel_transition",
+      "summary": "Cancel one active visual transaction without changing the component lifecycle.",
+      "since": "1.0.0",
+      "required": false,
+      "idempotent": true,
+      "mutates": true,
+      "request": {"$ref": "#/types/window-transition-cancel-request"},
+      "response": {"$ref": "#/types/window-transition-result"},
       "errors": ["WINDOW_POLICY_ERROR"],
       "conformance": []
     },
@@ -432,6 +542,39 @@
         "additionalProperties": false
       },
       "summary": "Publishes effective layout only after the native policy observes it."
+    },
+    {
+      "topic": "msys.window.transition",
+      "direction": "publish",
+      "required": false,
+      "payload": {
+        "type": "object",
+        "required": ["schema", "transition_id", "action", "phase", "component", "identity", "timeout_ms", "visual"],
+        "properties": {
+          "schema": {"const": "msys.window-transition.v1"},
+          "transition_id": {"type": "string", "maxLength": 96},
+          "action": {"enum": ["launch", "close"]},
+          "phase": {"enum": ["requested", "surface-ready", "surface-gone", "failed"]},
+          "component": {"type": "string", "maxLength": 256},
+          "identity": {"type": "string", "maxLength": 256},
+          "timeout_ms": {"type": "integer", "minimum": 100, "maximum": 30000},
+          "visual": {
+            "type": "object",
+            "required": ["icon", "color"],
+            "properties": {
+              "icon": {"type": "string", "maxLength": 512},
+              "color": {"type": "string", "maxLength": 9},
+              "origin": {"$ref": "#/types/geometry"}
+            },
+            "additionalProperties": false
+          },
+          "window_id": {"type": "string", "maxLength": 191},
+          "window_identity": {"type": "string", "maxLength": 256},
+          "reason": {"type": "string", "maxLength": 64}
+        },
+        "additionalProperties": false
+      },
+      "summary": "Reports exact-component surface readiness for compositor-free launch and close presenters."
     }
   ],
   "artifacts": [],
