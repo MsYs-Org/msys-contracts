@@ -388,6 +388,27 @@ class BehavioralRunnerTests(unittest.TestCase):
     def setUpClass(cls):
         cls.contract = load_json(ROOT / "contracts" / "roles" / "launcher.v1.json")
 
+    def test_launcher_preferences_describe_mobile_shell_fields_without_requiring_them(self):
+        preferences = self.contract["types"]["preferences"]
+        change = self.contract["types"]["preference-change"]
+        for field in (
+            "wallpaper_path",
+            "grid_columns",
+            "grid_rows",
+            "acrylic",
+            "navigation_mode",
+            "navigation_visibility",
+            "status_visibility",
+            "icon_spacing",
+            "folders_enabled",
+            "large_folders_enabled",
+            "animations_enabled",
+            "reduce_motion",
+        ):
+            self.assertIn(field, preferences["properties"])
+            self.assertIn(field, change["properties"])
+            self.assertNotIn(field, preferences["required"])
+
     def test_reference_adapter_passes_safe_suite(self):
         executed, skipped, errors = run_conformance(
             self.contract,

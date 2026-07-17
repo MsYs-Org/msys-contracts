@@ -15,9 +15,21 @@ CLAIM = {"id": "org.msys.role.launcher.v1", "version": "1.0.0"}
 DEFAULTS = {
     "layout": "profile",
     "wallpaper_color": "#10151c",
+    "wallpaper_path": "",
     "accent_color": "#66b3ff",
     "icon_size": 56,
+    "grid_columns": 0,
+    "grid_rows": 0,
     "show_labels": True,
+    "acrylic": True,
+    "navigation_mode": "pill",
+    "navigation_visibility": "always",
+    "status_visibility": "always",
+    "icon_spacing": 8,
+    "folders_enabled": True,
+    "large_folders_enabled": True,
+    "animations_enabled": True,
+    "reduce_motion": False,
     "sort": "name",
 }
 preferences = dict(DEFAULTS)

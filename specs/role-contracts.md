@@ -62,9 +62,20 @@ an exact component id, a launcher may expose provider-owned appearance state:
 
 ```text
 get_preferences({}) -> { schema, revision, preferences }
-set_preferences({ layout?, wallpaper_color?, accent_color?, icon_size?, show_labels?, sort? })
+set_preferences({ layout?, wallpaper_color?, wallpaper_path?, accent_color?,
+                  icon_size?, grid_columns?, grid_rows?, show_labels?, acrylic?,
+                  navigation_mode?, navigation_visibility?, status_visibility?,
+                  icon_spacing?, folders_enabled?, large_folders_enabled?,
+                  animations_enabled?, reduce_motion?, sort? })
 reset_preferences({}) -> { schema, revision, preferences }
 ```
+
+The six original v1 presentation fields remain required in a preference state.
+The later mobile fields are optional so a compact third-party launcher remains
+conformant.  A provider that implements them uses `buttons|pill` for navigation
+presentation and `always|auto-hide` independently for navigation and status
+visibility.  `auto-hide` keeps an edge reveal target; it does not invent a
+second navigation provider or change the selected role.
 
 ## screen-shield v1 methods
 
